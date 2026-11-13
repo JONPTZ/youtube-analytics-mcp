@@ -31,6 +31,14 @@ export class AuthManager {
       }
     }
 
+    // Env-based credentials (Railway): no files needed
+    const envClient = this.clientFromEnv();
+    if (envClient) {
+      await this.refreshTokenIfNeeded(envClient);
+      this.authClient = envClient;
+      return envClient;
+    }
+
     try {
       // Try to load existing token
       const content = await fs.readFile(this.TOKEN_PATH, 'utf8');
@@ -64,6 +72,15 @@ export class AuthManager {
       this.authClient = null;
       return await this.authenticate();
     }
+  }
+
+  // GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET + GOOGLE_REFRESH_TOKEN
+  private clientFromEnv(): OAuth2Client | null {
+    const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN } = process.env;
+    if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REFRESH_TOKEN) return null;
+    const client = new OAuth2Client(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
+    client.setCredentials({ refresh_token: GOOGLE_REFRESH_TOKEN });
+    return client;
   }
 
   async authenticate(): Promise<OAuth2Client> {
@@ -159,6 +176,7 @@ export class AuthManager {
   }
 
   private async updateStoredToken(auth: OAuth2Client): Promise<void> {
+    if (process.env.GOOGLE_REFRESH_TOKEN) return; // env-based auth: nothing on disk
     try {
       const content = await fs.readFile(this.TOKEN_PATH, 'utf8');
       const tokenData: TokenData = JSON.parse(content);
